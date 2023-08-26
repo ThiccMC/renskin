@@ -12,3 +12,11 @@ An alternate to `SkinSystem` for `SkinRestorer`. By default, it have less overhe
 ## Requirements
 
 - `SkinRestorer` dataset
+
+## How to use
+
+> Compile it yourself (it require database connection upon compile time, for stupid typecheck whatever thanks)
+
+- Clone
+- Config with .env
+- `cargo install --path .`
