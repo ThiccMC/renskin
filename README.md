@@ -5,9 +5,17 @@ An alternate to `SkinSystem` for `SkinRestorer`. By default, it have less overhe
 ## Roadmap
 
 - [x] It works!
-- [ ] TODO: Implement a proper SQL foolproof
-- [ ] It function as a HTTP server
-- [ ] It have proper caching
+- [x] TODO: Implement a proper SQL foolproof
+  > With proper rustegexp!
+- [x] It function as a HTTP server
+- [-] It have proper caching
+  > TODO: It know when to rebake new image but
+  >
+  > - It must know when to flush the images
+  > - It must let the proxy know when to cache (Edge)
+- [ ] Support premium skin
+  > [!NOTE]
+  > Not yet, might need thirdparty :sob:
 
 ## Requirements
 
@@ -20,3 +28,7 @@ An alternate to `SkinSystem` for `SkinRestorer`. By default, it have less overhe
 - Clone
 - Config with .env
 - `cargo install --path .`
+
+## Best practice
+
+- crontab `*/3 * * * * rm .cache/moj/*`
