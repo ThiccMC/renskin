@@ -29,7 +29,7 @@ An alternate to `SkinSystem` for `SkinRestorer`. By default, it have less overhe
 
 ## How to use
 
-> Compile it yourself (it require database connection upon compile time, for stupid typecheck whatever thanks)
+> Compile it yourself
 
 - Clone
 - Config with .env
