@@ -8,11 +8,17 @@ An alternate to `SkinSystem` for `SkinRestorer`. By default, it have less overhe
 - [x] TODO: Implement a proper SQL foolproof
   > With proper rustegexp!
 - [x] It function as a HTTP server
-- [-] It have proper caching
+- [x] It have proper caching
   > TODO: It know when to rebake new image but
   >
-  > - It must know when to flush the images
-  > - It must let the proxy know when to cache (Edge)
+  > - It must know when to flush the images (bash-scripted)
+  > - It must let the proxy know when to cache (Edge) (50%)
+- [x] Fixed sqlx macro shills (hack)
+- [x] SIMD
+  > Holy f, do not use it in prod! It might
+  > - `STATUS_HEAP_CORRUPTION`
+  >
+  > please build with `cargo build --release --no-default-features`
 - [ ] Support premium skin
   > [!NOTE]
   > Not yet, might need thirdparty :sob:

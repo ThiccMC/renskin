@@ -3,15 +3,23 @@ name = "renskin"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["simd"]
+simd = []
 
 [dependencies]
 async-std = { version = "1.12.0", features = ["attributes"] }
 dotenvy = "0.15.7"
-image = { version = "0.24.7", default-features = false, features = ["png"] }
-regex = "1.9.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+regex = "1.9"
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.105"
-sqlx = { version = "0.7.1", features = ["mysql", "runtime-async-std", "macros"], default-features = false }
-surf = { version = "2.3.2", default-features = false, features = ["h1-client-rustls"] }
+sqlx = { version = "0.8", features = [
+    "mysql",
+    "runtime-async-std",
+    "macros",
+], default-features = false }
+surf = { version = "2.3.2", default-features = false, features = [
+    "h1-client-rustls",
+] }
 tide = "0.16.0"

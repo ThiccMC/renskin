@@ -1,16 +1,20 @@
+#![feature(portable_simd)]
+
 use image::{codecs::png::PngEncoder, ImageBuffer, Rgb};
 use regex::Regex;
-use tide::{Body, Request, Response};
+use tide::{Body, Middleware, Request, Response};
 
-use image::{io::Reader as ImageReader, RgbImage};
+use image::{ImageReader, RgbImage};
 use serde::Deserialize;
 use sqlx::{MySql, MySqlPool, Pool};
 use std::{
     env,
     error::Error,
+    fmt::Debug,
     fs::{self, File},
     io::Cursor,
     path::Path,
+    str::Bytes,
 };
 
 mod ihacks;
@@ -37,25 +41,25 @@ struct AvatarMeta {
 static PLACEHOLDER: &'static [u8] = include_bytes!("placeholder.png");
 
 async fn query(pool: &Pool<MySql>, nick: &String) -> Result<AvatarMeta, tide::Error> {
-    let sq = sqlx::query!(
-        "
-SELECT FROM_BASE64(sk.Value) as data
-FROM Players AS pl 
-INNER JOIN Skins AS sk 
-ON pl.Skin = sk.Nick 
-WHERE pl.Nick = ?
-        ",
-        nick
+    let sq: sqlx::Result<(String, i32)> = sqlx::query_as(
+        "SELECT CONVERT(FROM_BASE64(sk.Value) USING UTF8) as data, 0 as t
+            FROM Players AS pl 
+            INNER JOIN Skins AS sk 
+            ON pl.Skin = sk.Nick 
+            WHERE pl.Nick = ?
+            LIMIT 1",
     )
-    .fetch_all(pool)
-    .await?;
-    return if sq.len() > 0 {
-        let sqd = sq[0].data.as_ref().unwrap().to_owned(); //stolen
-        let sqr = String::from_utf8(sqd)?;
-        let met: AvatarMeta = serde_json::from_str(&sqr)?;
-        Ok(met)
+    .bind(nick)
+    .fetch_one(pool)
+    .await;
+    return if let Ok((sqd, _)) = sq {
+        Ok(serde_json::from_str::<AvatarMeta>(&sqd)?)
     } else {
-        Err(tide::Error::from_str(404, "no one"))
+        if let Some(er) = sq.err() {
+            Err(tide::Error::from_str(404, format!("{}", er)))
+        } else {
+            Err(tide::Error::from_str(404, "unk err"))
+        }
     };
 }
 
@@ -97,10 +101,27 @@ struct PlayerQuery {
     username: String,
 }
 
-async fn face(res: Request<State>) -> tide::Result {
-    let url = env::var("DATABASE_URL")?;
-    let pool = MySqlPool::connect(&url).await?;
+fn face_err(not_ok_str: String) -> tide::Result {
+    Ok(Response::builder(404)
+        .header(
+            "X-Not-Ok",
+            match not_ok_str.as_str() {
+                "no rows returned by a query that expected to return at least one row" => {
+                    "no entry"
+                }
+                _ => {
+                    println!("{not_ok_str}");
+                    ""
+                }
+            },
+        )
+        .header("Cache-Control", "no-cache")
+        .header("Content-Type", "image/png")
+        .body(PLACEHOLDER)
+        .build())
+}
 
+async fn face(res: Request<State>) -> tide::Result {
     let rq: PlayerQuery = res.query()?;
 
     let name = rq.username.to_lowercase();
@@ -111,37 +132,39 @@ async fn face(res: Request<State>) -> tide::Result {
             .build());
     }
 
-    let query = query(&pool, &name).await;
-    if query.is_ok() {
-        let meta = query.ok().unwrap();
-        let _pth = format!("./.cache/moj/{}.png", &meta.profile_id);
-        let _fpth = format!("./.cache/ren/{}.png", name);
+    let _fpth = format!("./.cache/ren/{}.png", name);
+    let face_path = Path::new(&_fpth);
 
-        let raw_path = Path::new(&_pth);
-        let face_path = Path::new(&_fpth);
-        if !raw_path.exists() || !face_path.exists() {
-            let f = File::create(face_path)?;
-            let enc = PngEncoder::new(f);
-            let _r = draw_face(raw_path, &meta).await?;
-            _r.write_with_encoder(enc)?;
-        };
-        return Ok(Response::builder(200)
-        .header("Cache-Control", "public")
-            .header("Content-Type", "image/png")
-            .body(Body::from_file(face_path).await?)
-            .build());
+    if !face_path.exists() {
+        let url = env::var("DATABASE_URL")?;
+        let pool = MySqlPool::connect(&url).await?;
+        let query = query(&pool, &name).await;
+        if let Ok(meta) = query {
+            let _pth = format!("./.cache/moj/{}.png", &meta.profile_id);
+
+            let raw_path = Path::new(&_pth);
+            if !raw_path.exists() || !face_path.exists() {
+                let f = File::create(face_path)?;
+                let enc = PngEncoder::new(f);
+                let _r = draw_face(raw_path, &meta).await?;
+                _r.write_with_encoder(enc)?;
+            };
+        } else {
+            return face_err(query.err().map(|e| format!("{e}")).unwrap_or_default());
+        }
     }
-    Ok(Response::builder(404)
+    return Ok(Response::builder(200)
+        .header("X-Powered-By", "ThiccMC/renskin")
+        .header("Cache-Control", "public")
         .header("Content-Type", "image/png")
-        .body(PLACEHOLDER)
-        .build())
+        .body(Body::from_file(face_path).await?)
+        .build());
 }
 
 #[derive(Clone)]
 struct State {
     username_regex: Regex,
 }
-
 // #[tokio::main]
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
