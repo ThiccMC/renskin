@@ -1,5 +1,6 @@
 use image::{codecs::png::PngEncoder, GenericImage, ImageBuffer, Pixel, Rgba, RgbaImage};
 use regex::Regex;
+use thiserror::Error;
 use tide::{Body, Request, Response};
 
 use image::ImageReader;
@@ -39,10 +40,24 @@ struct AvatarMeta {
     textures: TextureListMeta,
 }
 
+#[derive(Error, Debug)]
+enum AppError {
+    #[error("Database Error")]
+    Database(#[from] sqlx::Error),
+    #[error("Serialization Error")]
+    Serialization,
+    #[error("Framework Error")]
+    Framework,
+    #[error("QueryBody Error")]
+    QueryBody(#[from] surf::DecodeError),
+    #[error("Query Error")]
+    Query(String),
+}
+
 static PLACEHOLDER: &[u8] = include_bytes!("placeholder.png");
 
-async fn query(pool: &Pool<MySql>, nick: &String) -> Result<AvatarMeta, tide::Error> {
-    let sq: sqlx::Result<(String, i32)> = sqlx::query_as(
+async fn query(pool: &Pool<MySql>, nick: &String) -> Result<AvatarMeta, AppError> {
+    let sq: (String, i32) = sqlx::query_as(
         if env::var("SOFT_DATABASE").unwrap_or("".to_string()) == "yes" {
             "SELECT CONVERT(FROM_BASE64(sk.Value) USING UTF8) as data, 0 as t
             FROM Skins as sk
@@ -59,14 +74,12 @@ async fn query(pool: &Pool<MySql>, nick: &String) -> Result<AvatarMeta, tide::Er
     )
     .bind(nick)
     .fetch_one(pool)
-    .await;
-    if let Ok((sqd, _)) = sq {
-        Ok(serde_json::from_str::<AvatarMeta>(&sqd)?)
-    } else if let Some(er) = sq.err() {
-        Err(tide::Error::from_str(404, format!("{}", er)))
+    .await?;
+    return if let Ok(de) = serde_json::from_str::<AvatarMeta>(&sq.0) {
+        Ok(de)
     } else {
-        Err(tide::Error::from_str(404, "unk err"))
-    }
+        Err(AppError::Serialization)
+    };
 }
 
 async fn fetch(met: &AvatarMeta, path: &Path) -> Result<Vec<u8>, tide::Error> {
@@ -130,21 +143,9 @@ struct PlayerQuery {
     scale: Option<u32>,
 }
 
-fn face_err(state: &State, not_ok_str: String) -> tide::Result {
+fn face_err(state: &State) -> tide::Result {
     state.counter_cache.with_label_values(&["failed"]).inc();
     Ok(Response::builder(404)
-        .header(
-            "X-Not-Ok",
-            match not_ok_str.as_str() {
-                "no rows returned by a query that expected to return at least one row" => {
-                    "no entry"
-                }
-                _ => {
-                    println!("{not_ok_str}");
-                    "yeah not ok"
-                }
-            },
-        )
         .header("Cache-Control", "no-cache")
         .header("Content-Type", "image/png")
         .body(PLACEHOLDER)
@@ -179,24 +180,33 @@ async fn face(res: Request<State>) -> tide::Result {
         let url = env::var("DATABASE_URL")?;
         let pool = MySqlPool::connect(&url).await?;
         let query = query(&pool, &name).await;
-        if let Ok(meta) = query {
+        let (raw_path, meta) = if let Ok(meta) = query {
             let _pth = format!("./.cache/moj/{}.png", &meta.profile_id);
-
             let raw_path = Path::new(&_pth);
-
-            let f = File::create(face_path)?;
-            let enc = PngEncoder::new(f);
-            cached_1x_buffer = Some(draw_face(res.state(), raw_path, &meta).await?);
-            cached_1x_buffer.clone().unwrap().write_with_encoder(enc)?;
+            fetch(&meta, raw_path).await?;
+            (_pth, meta)
         } else {
-            return face_err(
-                res.state(),
-                query
-                    .err()
-                    .map(|e: surf::Error| format!("{e}"))
-                    .unwrap_or_default(),
-            );
-        }
+            #[cfg(feature = "nomn")]
+            face_err(res.state());
+
+            let _pth = format!("./.cache/moj/{}.png", name);
+            let raw_path = Path::new(&_pth);
+            let meta = AvatarMeta {
+                profile_id: "".to_string(),
+                textures: TextureListMeta {
+                    skin: TextureMeta {
+                        url: format!("https://minotar.net/skin/{}.png", name),
+                    },
+                },
+            };
+            fetch(&meta, raw_path).await?;
+            (_pth, meta)
+        };
+
+        let f = File::create(face_path)?;
+        let enc = PngEncoder::new(f);
+        cached_1x_buffer = Some(draw_face(res.state(), Path::new(&raw_path), &meta).await?);
+        cached_1x_buffer.clone().unwrap().write_with_encoder(enc)?;
     } else {
         cache_hit = true;
         if should_upscale {
