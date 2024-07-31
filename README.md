@@ -17,11 +17,13 @@ An alternate to `SkinSystem` for `SkinRestorer`. By default, it have less overhe
 - [x] SIMD
   > Holy f, do not use it in prod! It might
   > - `STATUS_HEAP_CORRUPTION`
-  >
-  > please build with `cargo build --release --no-default-features`
+  > - `STATUS_ILLEGAL_INSTRUCTION` (obsolette cpu moment)
 - [ ] Support premium skin
   > [!NOTE]
   > Not yet, might need thirdparty :sob:
+
+> Because the rendering stays at 300ms (composition only, with tested conditions)
+> and the upscaling stays at 40-70ms, it is hard to implement more stuff
 
 ## Requirements
 
