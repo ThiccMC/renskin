@@ -1,28 +1,18 @@
-#![feature(portable_simd)]
-#![feature(stdarch_x86_avx512)]
-
-use image::{
-    codecs::png::PngEncoder, GenericImage, GenericImageView, ImageBuffer, Pixel, Rgb, Rgba,
-    RgbaImage,
-};
+use image::{codecs::png::PngEncoder, GenericImage, ImageBuffer, Pixel, Rgba, RgbaImage};
 use regex::Regex;
-use tide::{Body, Middleware, Request, Response};
+use tide::{Body, Request, Response};
 
-use image::{ImageReader, RgbImage};
+use image::ImageReader;
 use serde::Deserialize;
 use sqlx::{MySql, MySqlPool, Pool};
 use std::{
     env,
     error::Error,
-    fmt::Debug,
     fs::{self, File},
     io::Cursor,
     path::Path,
-    str::Bytes,
 };
-use tide_prometheus::prometheus::{
-    register_counter, register_int_counter, register_int_counter_vec, Counter, IntCounterVec, Opts,
-};
+use tide_prometheus::prometheus::{register_int_counter_vec, IntCounterVec, Opts};
 
 #[cfg(feature = "simd")]
 mod ihacks;
@@ -49,7 +39,7 @@ struct AvatarMeta {
     textures: TextureListMeta,
 }
 
-static PLACEHOLDER: &'static [u8] = include_bytes!("placeholder.png");
+static PLACEHOLDER: &[u8] = include_bytes!("placeholder.png");
 
 async fn query(pool: &Pool<MySql>, nick: &String) -> Result<AvatarMeta, tide::Error> {
     let sq: sqlx::Result<(String, i32)> = sqlx::query_as(
@@ -67,15 +57,13 @@ async fn query(pool: &Pool<MySql>, nick: &String) -> Result<AvatarMeta, tide::Er
     .bind(nick)
     .fetch_one(pool)
     .await;
-    return if let Ok((sqd, _)) = sq {
+    if let Ok((sqd, _)) = sq {
         Ok(serde_json::from_str::<AvatarMeta>(&sqd)?)
+    } else if let Some(er) = sq.err() {
+        Err(tide::Error::from_str(404, format!("{}", er)))
     } else {
-        if let Some(er) = sq.err() {
-            Err(tide::Error::from_str(404, format!("{}", er)))
-        } else {
-            Err(tide::Error::from_str(404, "unk err"))
-        }
-    };
+        Err(tide::Error::from_str(404, "unk err"))
+    }
 }
 
 async fn fetch(met: &AvatarMeta, path: &Path) -> Result<Vec<u8>, tide::Error> {
@@ -98,7 +86,7 @@ async fn draw_face(
             .decode()?
     } else {
         state.counter_cache.with_label_values(&["missed"]).inc();
-        let b = fetch(&met, raw_path).await?;
+        let b = fetch(met, raw_path).await?;
         let buf = Cursor::new(b);
         ImageReader::new(buf).with_guessed_format()?.decode()?
     }
@@ -236,24 +224,24 @@ async fn face(res: Request<State>) -> tide::Result {
         if cache_hit {
             res.state().counter_cache.with_label_values(&["hit_scl"]);
         }
-        return Ok(Response::builder(200)
+        Ok(Response::builder(200)
             .header("X-Powered-By", "ThiccMC/renskin")
             .header("X-State", "upscaled")
             .header("Cache-Control", "public")
             .header("Content-Type", "image/png")
             .body(Body::from_file(scale_path).await?)
-            .build());
+            .build())
     } else {
         if cache_hit {
             res.state().counter_cache.with_label_values(&["hit_rend"]);
         }
-        return Ok(Response::builder(200)
+        Ok(Response::builder(200)
             .header("X-Powered-By", "ThiccMC/renskin")
             .header("X-State", "rendered")
             .header("Cache-Control", "public")
             .header("Content-Type", "image/png")
             .body(Body::from_file(face_path).await?)
-            .build());
+            .build())
     }
 }
 

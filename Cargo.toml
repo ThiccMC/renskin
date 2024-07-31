@@ -3,6 +3,10 @@ name = "renskin"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "rskd"
+path = "src/main.rs"
+
 [features]
 default = []
 simd = []

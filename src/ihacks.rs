@@ -1,9 +1,11 @@
 use image::{Pixel, Rgb, RgbImage, Rgba, RgbaImage};
 
 #[cfg(feature = "simd")]
+#[feature(portable_simd)]
 use std::arch::x86_64::*;
 
 #[cfg(feature = "simd")]
+#[feature(portable_simd)]
 pub fn comp(rx: u32, ry: u32, dst: &mut [u8; 256], src: &RgbaImage) {
     let sw = src.width();
 
