@@ -43,16 +43,19 @@ static PLACEHOLDER: &[u8] = include_bytes!("placeholder.png");
 
 async fn query(pool: &Pool<MySql>, nick: &String) -> Result<AvatarMeta, tide::Error> {
     let sq: sqlx::Result<(String, i32)> = sqlx::query_as(
-        // "SELECT CONVERT(FROM_BASE64(sk.Value) USING UTF8) as data, 0 as t
-        //     FROM Skins as sk
-        //     WHERE sk.Nick = ?
-        //     LIMIT 1",
-        "SELECT CONVERT(FROM_BASE64(sk.Value) USING UTF8) as data, 0 as t
-        FROM Players AS pl
-        INNER JOIN Skins AS sk
-        ON pl.Skin = sk.Nick
-        WHERE pl.Nick = ?
-        LIMIT 1",
+        if env::var("SOFT_DATABASE").unwrap_or("".to_string()) == "yes" {
+            "SELECT CONVERT(FROM_BASE64(sk.Value) USING UTF8) as data, 0 as t
+            FROM Skins as sk
+            WHERE sk.Nick = ?
+            LIMIT 1"
+        } else {
+            "SELECT CONVERT(FROM_BASE64(sk.Value) USING UTF8) as data, 0 as t
+            FROM Players AS pl
+            INNER JOIN Skins AS sk
+            ON pl.Skin = sk.Nick
+            WHERE pl.Nick = ?
+            LIMIT 1"
+        },
     )
     .bind(nick)
     .fetch_one(pool)
@@ -80,7 +83,7 @@ async fn draw_face(
     met: &AvatarMeta,
 ) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>, tide::Error> {
     let mut buff = if raw_path.exists() {
-        state.counter_cache.with_label_values(&["hit_raw"]);
+        state.counter_cache.with_label_values(&["hit_raw"]).inc();
         ImageReader::open(raw_path)?
             .with_guessed_format()?
             .decode()?
@@ -128,7 +131,7 @@ struct PlayerQuery {
 }
 
 fn face_err(state: &State, not_ok_str: String) -> tide::Result {
-    state.counter_cache.with_label_values(&["failed"]);
+    state.counter_cache.with_label_values(&["failed"]).inc();
     Ok(Response::builder(404)
         .header(
             "X-Not-Ok",
@@ -222,7 +225,10 @@ async fn face(res: Request<State>) -> tide::Result {
             canvas.write_with_encoder(enc)?;
         }
         if cache_hit {
-            res.state().counter_cache.with_label_values(&["hit_scl"]);
+            res.state()
+                .counter_cache
+                .with_label_values(&["hit_scl"])
+                .inc();
         }
         Ok(Response::builder(200)
             .header("X-Powered-By", "ThiccMC/renskin")
@@ -233,7 +239,10 @@ async fn face(res: Request<State>) -> tide::Result {
             .build())
     } else {
         if cache_hit {
-            res.state().counter_cache.with_label_values(&["hit_rend"]);
+            res.state()
+                .counter_cache
+                .with_label_values(&["hit_rend"])
+                .inc();
         }
         Ok(Response::builder(200)
             .header("X-Powered-By", "ThiccMC/renskin")
@@ -253,7 +262,9 @@ struct State {
 // #[tokio::main]
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    dotenvy::dotenv()?;
+    dotenvy::dotenv().ok();
+
+    env::var("DATABASE_URL").expect("DATABASE_URL not found. Yeet!");
 
     fs::create_dir_all("./.cache/moj")?;
     fs::create_dir_all("./.cache/ren")?;
