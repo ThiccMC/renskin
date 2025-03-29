@@ -52,6 +52,8 @@ enum AppError {
     QueryBody(#[from] surf::DecodeError),
     #[error("Query Error")]
     Query(String),
+    #[error("Other Error")]
+    Other(#[from] anyhow::Error),
 }
 
 static PLACEHOLDER: &[u8] = include_bytes!("placeholder.png");
@@ -272,6 +274,7 @@ struct State {
 async fn main() -> Result<(), Box<dyn Error>> {
     dotenvy::dotenv().ok();
 
+    femme::start();
     env::var("DATABASE_URL").expect("DATABASE_URL not found. Yeet!");
 
     fs::create_dir_all("./.cache/moj")?;
@@ -289,7 +292,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let bind = env::var("RENSKIN_BIND").unwrap_or("127.0.0.1:3727".to_string());
 
-    println!("bind ur server at {}, modify with RENSKIN_BIND. gl", bind);
+    tide::log::info!("bind ur server at {}, modify with RENSKIN_BIND. gl", bind);
 
     app.with(tide_prometheus::Prometheus::new("rsk"));
     app.at("/metrics").get(tide_prometheus::metrics_endpoint);

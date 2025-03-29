@@ -13,8 +13,10 @@ simd = []
 nomn = []
 
 [dependencies]
+anyhow = "1.0.97"
 async-std = { version = "1.12.0", features = ["attributes"] }
 dotenvy = "0.15.7"
+femme = "2.2.1"
 image = { version = "0.25", default-features = false, features = ["png"] }
 regex = "1.9"
 serde = { version = "1.0.188", features = ["derive"] }
@@ -27,6 +29,6 @@ sqlx = { version = "0.8", features = [
 surf = { version = "2.3.2", default-features = false, features = [
     "h1-client-rustls",
 ] }
-thiserror = "1"
+thiserror = "2"
 tide = "0.16.0"
 tide-prometheus = { version = "0.1.0", features = ["process"] }
