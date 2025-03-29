@@ -59,19 +59,17 @@ static PLACEHOLDER: &[u8] = include_bytes!("placeholder.png");
 async fn query(pool: &Pool<MySql>, nick: &String) -> Result<AvatarMeta, AppError> {
     let sq: (String, i32) = sqlx::query_as(
         if env::var("SOFT_DATABASE").unwrap_or("".to_string()) == "yes" {
-            "SELECT CONVERT(FROM_BASE64(sk.Value) USING UTF8) as data, 0 as t
-            FROM Skins as sk
-            WHERE sk.Nick = ?
-            LIMIT 1"
+            "-BORKED-"
         } else {
-            "SELECT CONVERT(FROM_BASE64(sk.Value) USING UTF8) as data, 0 as t
-            FROM Players AS pl
-            INNER JOIN Skins AS sk
-            ON pl.Skin = sk.Nick
-            WHERE pl.Nick = ?
+            "SELECT CONVERT(FROM_BASE64(sk.Value) USING UTF8) as data
+            FROM sr_cache AS pl
+            JOIN sr_player_skins AS sk
+            ON pl.`uuid` = sk.`uuid`
+            WHERE LOWER(pl.`name`) = LOWER(?) OR LOWER(sk.last_known_name) = LOWER(?)
             LIMIT 1"
         },
     )
+    .bind(nick)
     .bind(nick)
     .fetch_one(pool)
     .await?;
