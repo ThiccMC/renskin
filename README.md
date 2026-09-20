@@ -14,10 +14,9 @@ An alternate to `SkinSystem` for `SkinRestorer`. By default, it have less overhe
   > - It must know when to flush the images (bash-scripted)
   > - It must let the proxy know when to cache (Edge) (50%)
 - [x] Fixed sqlx macro shills (hack)
-- [x] SIMD
-  > Holy f, do not use it in prod! It might
-  > - `STATUS_HEAP_CORRUPTION`
-  > - `STATUS_ILLEGAL_INSTRUCTION` (obsolette cpu moment)
+- [x] Streaming PNG face compositor
+  > Decode rows 8..15 only, compose RGBA8 with a portable scalar reference.
+  > `--features avx2` enables runtime-dispatched row loads on capable x86_64.
 - [ ] Support premium skin
   > [!NOTE]
   > Not yet, might need thirdparty :sob:
@@ -35,8 +34,16 @@ An alternate to `SkinSystem` for `SkinRestorer`. By default, it have less overhe
 
 - Clone
 - Config with .env
-- `cargo install --path .`
+- `cargo build --release`
+
+The service uses the Mojang profile/session APIs by default. An optional
+SkinSystem MySQL resolver is enabled with `DATABASE_URL`; a failed connection
+only emits a warning and falls back. Add `--ely-by` to try
+`http://skinsystem.ely.by/skins/{username}.png` before Mojang. Run
+`rskd --help` for all Clap options.
 
 ## Best practice
 
-- crontab `*/3 * * * * rm .cache/moj/*`
+- Cache eviction runs inside the Smol executor once per hour. Set
+  `RENSKIN_CACHE_DIR` for an explicit writable cache location (the container
+  defaults to `/tmp/renskin-cache`).

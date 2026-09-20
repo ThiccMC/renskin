@@ -1,31 +1,14 @@
 FROM rust:1-slim AS builder
 WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+RUN cargo fetch --locked
+COPY src ./src
+RUN cargo build --release --locked
 
-COPY . .
-RUN cargo install --path .
-
-# Stage 2: Create the final image
 FROM debian:bookworm-slim
-
-WORKDIR /app
-COPY --from=builder /usr/local/cargo/bin/rskd /app/rskd
-
-# Copy cleaning script
-COPY ./scripts/gc.sh ./
-RUN chmod +x /app/gc.sh
-
-# Install cron and dependencies
-RUN apt-get update && \
-    apt-get install -y cron && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN echo "0 * * * * /usr/bin/sh /app/gc.sh" > /etc/cron.d/clean_cache
-
-# Set permissions for crontab
-RUN chmod 644 /etc/cron.d/clean_cache
-
-# Expose port (if necessary)
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/rskd /usr/local/bin/rskd
+ENV RENSKIN_BIND=0.0.0.0:3727 RENSKIN_CACHE_DIR=/tmp/renskin-cache
 EXPOSE 3727
-
-# Command to run the application
-CMD ["/app/rskd"]
+USER 65534:65534
+CMD ["/usr/local/bin/rskd"]

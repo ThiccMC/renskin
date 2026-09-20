@@ -9,26 +9,32 @@ path = "src/main.rs"
 
 [features]
 default = []
-simd = []
+avx2 = []
 nomn = []
 
 [dependencies]
-anyhow = "1.0.97"
-async-std = { version = "1.12.0", features = ["attributes"] }
-dotenvy = "0.15.7"
-femme = "2.2.1"
-image = { version = "0.25", default-features = false, features = ["png"] }
-regex = "1.9"
-serde = { version = "1.0.188", features = ["derive"] }
-serde_json = "1.0.105"
-sqlx = { version = "0.8", features = [
-    "mysql",
-    "runtime-async-std",
-    "macros",
-], default-features = false }
-surf = { version = "2.3.2", default-features = false, features = [
-    "h1-client-rustls",
-] }
+anyhow = "1"
+async-fs = "2"
+base64 = "0.22"
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+femme = "2"
+futures-lite = "2"
+log = "0.4"
+png = "0.18"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_urlencoded = "0.7"
+sqlx = { version = "0.9", default-features = false, features = ["mysql", "runtime-smol", "macros"] }
 thiserror = "2"
-tide = "0.16.0"
-tide-prometheus = { version = "0.1.0", features = ["process"] }
+trillium = "1"
+trillium-client = "0.9"
+trillium-rustls = "0.11"
+trillium-smol = "0.7"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
