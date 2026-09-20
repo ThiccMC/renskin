@@ -1,4 +1,4 @@
-FROM rust:1-slim AS builder
+FROM rustlang/rust:nightly-bookworm-slim AS builder
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 RUN cargo fetch --locked
